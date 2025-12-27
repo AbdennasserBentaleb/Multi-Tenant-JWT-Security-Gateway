@@ -1,0 +1,73 @@
+services:
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PostgreSQL 16 — Alpine (matches k3s production node base)
+  # ───────────────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: gateway-postgres
+    environment:
+      POSTGRES_DB: gatewaydb
+      POSTGRES_USER: postgres # superuser for migrations
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Post-init script: create application role (non-superuser)
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d gatewaydb" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Keycloak 25 (Quarkus-based, lightweight) — identity provider
+  # Pre-configured realm is mounted from ./docker/keycloak/
+  # ───────────────────────────────────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    container_name: gateway-keycloak
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import:ro
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # JWT Gateway Application
+  # ───────────────────────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gateway-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    restart: on-failure
+    environment:
+      # 12-Factor III: all config via environment variables
+      SERVER_PORT: 8080
+      DB_URL: jdbc:postgresql://postgres:5432/gatewaydb
+      DB_USER: gateway_user
+      DB_PASSWORD: local_dev_password_only
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8180/realms/gateway
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/gateway/protocol/openid-connect/certs
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  postgres_data:

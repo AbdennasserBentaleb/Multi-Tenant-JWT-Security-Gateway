@@ -1,0 +1,102 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jwt-security-gateway
+  namespace: jwt-gateway
+  labels:
+    app.kubernetes.io/name: jwt-security-gateway
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: api-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: jwt-security-gateway
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0   # Zero-downtime deployments
+
+  template:
+    metadata:
+      labels:
+        app: jwt-security-gateway
+        app.kubernetes.io/name: jwt-security-gateway
+    spec:
+      # ── Security context: non-root, read-only root fs ──────────────────────
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532           # Distroless nonroot UID
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: gateway
+          # Replace with your GHCR image after CI push
+          image: ghcr.io/AbdennasserBentaleb/jwt-security-gateway:1.0.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+
+          # ── Read from ConfigMap ──────────────────────────────────────────
+          envFrom:
+            - configMapRef:
+                name: gateway-config
+            - secretRef:
+                name: gateway-secrets
+
+          # ── k3s Liveness probe: restart if JVM hangs ────────────────────
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+
+          # ── k3s Readiness probe: remove from Service if not ready ────────
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 3
+
+          # ── Resource limits for bare-metal k3s nodes ────────────────────
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
+
+      # ── Spread replicas across nodes ─────────────────────────────────────
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: jwt-security-gateway

@@ -1,0 +1,11 @@
+* text=auto
+
+# Enforce LF for shell and docker files
+mvnw text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker/init-db.sql text eol=lf
+
+# Enforce CRLF for Windows scripts
+*.bat text eol=crlf
+*.cmd text eol=crlf

@@ -1,0 +1,37 @@
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven
+.mvn/repository/
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Docker
+.docker/
+
+# Secrets — never commit real secrets
+*.env
+.env.local
+.env.production
+
+# Test output
+**/surefire-reports/
+**/failsafe-reports/

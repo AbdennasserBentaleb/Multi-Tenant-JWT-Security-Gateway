@@ -64,8 +64,8 @@ class ProductControllerIT {
         @DynamicPropertySource
         static void overrideDataSourceProperties(DynamicPropertyRegistry registry) {
                 registry.add("spring.datasource.url", postgres::getJdbcUrl);
-                registry.add("spring.datasource.username", postgres::getUsername);
-                registry.add("spring.datasource.password", postgres::getPassword);
+                registry.add("spring.datasource.username", () -> "gateway_user");
+                registry.add("spring.datasource.password", () -> "local_dev_password_only");
                 registry.add("spring.flyway.url", postgres::getJdbcUrl);
                 registry.add("spring.flyway.user", postgres::getUsername);
                 registry.add("spring.flyway.password", postgres::getPassword);

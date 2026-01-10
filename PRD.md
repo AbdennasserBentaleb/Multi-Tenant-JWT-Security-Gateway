@@ -13,8 +13,8 @@ To build a secure, stateless, and scalable gateway that guarantees strict tenant
 ## 4. Key Features
 * **Stateless Authentication**: Uses Keycloak as the Identity Provider (IdP) to issue JWTs.
 * **Tenant Context Extraction**: Intercepts requests, validates the JWT, and extracts the `tenant_id`.
-* **Java 25 ScopedValues**: Uses modern Java concurrency features for safe, immutable context propagation.
-* **Database-Level Isolation**: Applies PostgreSQL Row-Level Security via `SET LOCAL`.
+* **Java 21 ThreadLocal**: Uses standard ThreadLocal concurrency features for safe context propagation.
+* **Database-Level Isolation**: Applies PostgreSQL Row-Level Security via `SET SESSION`.
 * **Cloud-Native Deployment**: Packaged as a distroless container, ready for Kubernetes (k3s).
 
 ## 5. Security Requirements

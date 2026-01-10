@@ -9,14 +9,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+// import org.testcontainers.containers.PostgreSQLContainer;
+// import org.testcontainers.junit.jupiter.Container;
+// import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -25,6 +24,11 @@ import static org.hamcrest.Matchers.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.Statement;
 
 /**
  * Integration test suite for the Products API.
@@ -47,22 +51,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(classes = dev.gateway.JwtGatewayApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Testcontainers
+// @Testcontainers Disabled for local build - uses docker-compose Postgres on 5434
 @DisplayName("Product API — Multi-Tenant RLS Integration Tests")
 class ProductControllerIT {
 
-        /** PostgreSQL 16 Alpine — matches k3s production environment. */
-        @Container
-        static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-                        .withDatabaseName("gatewaydb")
-                        .withUsername("postgres") // superuser for migrations
-                        .withPassword("postgres");
+        // @Container
+        // static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+        //                 .withDatabaseName("gatewaydb")
+        //                 .withUsername("postgres") // superuser for migrations
+        //                 .withPassword("postgres");
 
         @DynamicPropertySource
         static void overrideDataSourceProperties(DynamicPropertyRegistry registry) {
-                registry.add("spring.datasource.url", postgres::getJdbcUrl);
-                registry.add("spring.datasource.username", () -> "postgres");
-                registry.add("spring.datasource.password", () -> "postgres");
+                // Use docker-compose postgres instead of Testcontainers
+                registry.add("spring.datasource.url", () -> "jdbc:postgresql://localhost:5434/gatewaydb");
+                registry.add("spring.datasource.username", () -> "gateway_user");
+                registry.add("spring.datasource.password", () -> "local_dev_password_only");
+                registry.add("spring.flyway.url", () -> "jdbc:postgresql://localhost:5434/gatewaydb");
+                registry.add("spring.flyway.user", () -> "postgres");
+                registry.add("spring.flyway.password", () -> "postgres");
                 // Disable OAuth2 issuer-uri resolution during tests
                 registry.add("spring.security.oauth2.resourceserver.jwt.issuer-uri",
                                 () -> "http://localhost:9999/test-issuer");
@@ -74,27 +81,39 @@ class ProductControllerIT {
         @Autowired
         private ObjectMapper objectMapper;
 
-        @Autowired
-        private JdbcTemplate jdbcTemplate;
+
 
         private static final UUID TENANT_A = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         private static final UUID TENANT_B = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
         @BeforeEach
-        void seedDatabase() {
-                // Truncate and reseed before each test for determinism
-                jdbcTemplate.execute("TRUNCATE TABLE products");
+        void seedDatabase() throws Exception {
+                // Use direct JDBC connection as postgres superuser to truncate and bypass RLS for seeding
+                try (Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost:5434/gatewaydb", "postgres", "postgres")) {
+                        try (Statement stmt = conn.createStatement()) {
+                                stmt.execute("TRUNCATE TABLE products");
+                        }
 
-                // Bypass RLS for seeding — postgres superuser ignores RLS by default
-                jdbcTemplate.update(
-                                "INSERT INTO products (tenant_id, name, price) VALUES (?, ?, ?)",
-                                TENANT_A, "Tenant A Widget", new BigDecimal("10.00"));
-                jdbcTemplate.update(
-                                "INSERT INTO products (tenant_id, name, price) VALUES (?, ?, ?)",
-                                TENANT_A, "Tenant A Gadget", new BigDecimal("20.00"));
-                jdbcTemplate.update(
-                                "INSERT INTO products (tenant_id, name, price) VALUES (?, ?, ?)",
-                                TENANT_B, "Tenant B Product", new BigDecimal("99.00"));
+                        String insertSql = "INSERT INTO products (tenant_id, name, price) VALUES (?, ?, ?)";
+                        try (PreparedStatement pstmt = conn.prepareStatement(insertSql)) {
+                                pstmt.setObject(1, TENANT_A);
+                                pstmt.setString(2, "Tenant A Widget");
+                                pstmt.setBigDecimal(3, new BigDecimal("10.00"));
+                                pstmt.addBatch();
+
+                                pstmt.setObject(1, TENANT_A);
+                                pstmt.setString(2, "Tenant A Gadget");
+                                pstmt.setBigDecimal(3, new BigDecimal("20.00"));
+                                pstmt.addBatch();
+
+                                pstmt.setObject(1, TENANT_B);
+                                pstmt.setString(2, "Tenant B Product");
+                                pstmt.setBigDecimal(3, new BigDecimal("99.00"));
+                                pstmt.addBatch();
+
+                                pstmt.executeBatch();
+                        }
+                }
         }
 
         // ── Helper: build a mock JWT with a tenant_id claim ──────────────────────

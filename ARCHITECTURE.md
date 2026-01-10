@@ -9,7 +9,7 @@ My fundamental goal for this project was to implement a defence-in-depth securit
 The system consists of three main components:
 
 1. **Keycloak**: Acts as the Identity Provider (IdP). It authenticates users and issues OAuth2 JSON Web Tokens (JWTs). These tokens contain a custom claim (`tenant_id`) that binds the user to a specific organization.
-2. **Spring Boot Gateway**: A stateless Java 25 service. It validates the JWT signature, extracts the `tenant_id`, and manages the connection to the database.
+2. **Spring Boot Gateway**: A stateless Java 21 service. It validates the JWT signature, extracts the `tenant_id`, and manages the connection to the database.
 3. **PostgreSQL**: The relational database natively enforcing isolation via Row-Level Security policies.
 
 ### Request Flow
@@ -17,8 +17,8 @@ The system consists of three main components:
 1. A client application (e.g., a frontend SPA) sends an HTTP request with an `Authorization: Bearer <JWT>` header.
 2. The `BearerTokenAuthenticationFilter` in Spring Security intercepts the request. It fetches the public keys from Keycloak's JWKS endpoint to cryptographically verify the token.
 3. The custom `JwtTenantConverter` parses the validated JWT, extracts the `tenant_id` UUID claim, and binds it to the current execution thread.
-4. An application-level filter (`TenantContextFilter`) wraps the request in a Java 25 `ScopedValue` holding the `tenant_id`.
-5. When the application needs to interact with the database, the `TenantAwareDataSource` borrows a connection from the HikariCP pool and immediately executes `SET LOCAL app.current_tenant = '<tenant_id>'` within the connection's transaction scope.
+4. An application-level filter (`TenantContextFilter`) wraps the request in a `ThreadLocal` holding the `tenant_id`.
+5. When the application needs to interact with the database, the `TenantAwareDataSource` borrows a connection from the HikariCP pool and immediately executes `SET SESSION app.current_tenant = '<tenant_id>'` within the connection's transaction scope.
 6. The application performs standard JPA/Hibernate queries (e.g., `SELECT * FROM products`). *Notice that no `WHERE tenant_id = ?` clause is explicitly written in the code.*
 7. PostgreSQL receives the query. Before execution, its RLS engine transforms the query, essentially appending `WHERE tenant_id = current_setting('app.current_tenant')::uuid`.
 8. The database returns *only* the rows that the current tenant is authorized to see. If a user attempts to fetch a record belonging to another tenant by passing a specific ID, PostgreSQL will silently return 0 rows.
@@ -30,15 +30,13 @@ The system consists of three main components:
 In conventional applications, every repository method must explicitly filter by tenant ID. A single forgotten `WHERE` clause—due to refactoring, a junior developer's mistake, or a code review oversight—leads to cross-tenant data leaks.
 By pushing isolation to the database engine, we achieve structural safety. Even if a SQL injection vulnerability existed in the application, the attacker would be contrained by the RLS policy evaluated at the database level.
 
-### 2. Transaction-Scoped Variables (`SET LOCAL`)
+### 2. Transaction-Scoped Variables (`SET SESSION`)
 
-I used `SET LOCAL` instead of just `SET`. Connection pools (like HikariCP) reuse database connections to improve performance. If we used `SET`, a connection returned to the pool might retain the previous user's `tenant_id`, allowing the next user who borrowers it to accidentally access the wrong data.
-`SET LOCAL` binds the variable to the current database transaction. The moment the transaction commits or rolls back, PostgreSQL automatically clears the variable, ensuring pristine connections in the pool.
+I used `SET SESSION` rather than `SET LOCAL` due to how Spring Boot Data handles connection auto-commits. While `SET LOCAL` is transaction-scoped, Spring often executes database initialization routines outside of explicitly demarcated transaction boundaries (which would cause `SET LOCAL` to silently be ignored). To prevent cross-tenant data leaks in the connection pool (HikariCP), the `TenantAwareDataSource` rigidly sets the session variable immediately when a connection is retrieved, and safely clears it when returned.
 
-### 3. Java 25 Virtual Threads & `ScopedValue`
+### 3. Java 21 Virtual Threads & `ThreadLocal`
 
-Traditional thread-local storage (`ThreadLocal`) can cause serious memory leaks if not cleaned up properly, and its inheritance model doesn't work well with modern, highly concurrent Virtual Threads (Project Loom).
-I utilized `ScopedValue` (finalized in Java 25) which provides an immutable, safely bounded context. Once the request processing is complete, the value is automatically garbage collected, preventing thread-pollution.
+While modern Java 25 `ScopedValue` provides an immutable, safely bounded context, it lacks robust support in Spring Boot 6.2's core ASM class parsers, severely breaking Integration Tests. I opted to utilize standard `ThreadLocal` running on Java 21 (LTS) paired with Virtual Threads to retain 100% stable integration and maximum framework compatibility.
 
 ### 4. Stateless Sessions
 

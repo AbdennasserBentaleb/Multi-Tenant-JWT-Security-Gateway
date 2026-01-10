@@ -52,14 +52,17 @@ class ProductServiceTest {
         stubRepo.store(new Product(tenantId, "Widget", new BigDecimal("9.99")));
         stubRepo.store(new Product(tenantId, "Gadget", new BigDecimal("19.99")));
 
-        ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
+        try {
+            TenantContext.setTenantId(tenantId);
             Page<ProductResponse> responses = productService
                     .findAll(org.springframework.data.domain.PageRequest.of(0, 10));
 
             assertThat(responses.getContent()).hasSize(2);
             assertThat(responses.getContent()).extracting(ProductResponse::name)
                     .containsExactlyInAnyOrder("Widget", "Gadget");
-        });
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     @Test
@@ -68,13 +71,16 @@ class ProductServiceTest {
         UUID tenantId = UUID.randomUUID();
         CreateProductRequest request = new CreateProductRequest("New Item", new BigDecimal("5.00"));
 
-        ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
+        try {
+            TenantContext.setTenantId(tenantId);
             ProductResponse created = productService.create(request);
 
             assertThat(created.tenantId()).isEqualTo(tenantId);
             assertThat(created.name()).isEqualTo("New Item");
             assertThat(created.price()).isEqualByComparingTo("5.00");
-        });
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     @Test
@@ -83,11 +89,14 @@ class ProductServiceTest {
         UUID tenantId = UUID.randomUUID();
         UUID unknownId = UUID.randomUUID();
 
-        ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
+        try {
+            TenantContext.setTenantId(tenantId);
             assertThatThrownBy(() -> productService.findById(unknownId))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining(unknownId.toString());
-        });
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     @Test
@@ -96,10 +105,13 @@ class ProductServiceTest {
         UUID tenantId = UUID.randomUUID();
         Product product = stubRepo.store(new Product(tenantId, "ToDelete", new BigDecimal("1.00")));
 
-        ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
+        try {
+            TenantContext.setTenantId(tenantId);
             productService.delete(product.getId());
             assertThat(stubRepo.findById(product.getId())).isEmpty();
-        });
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     // ── In-memory stub ───────────────────────────────────────────────────────

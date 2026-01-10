@@ -24,9 +24,12 @@ class TenantContextTest {
         void isBound_returnsTrue() {
             UUID tenantId = UUID.randomUUID();
 
-            ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
+            try {
+                TenantContext.setTenantId(tenantId);
                 assertThat(TenantContext.isBound()).isTrue();
-            });
+            } finally {
+                TenantContext.clear();
+            }
         }
 
         @Test
@@ -34,9 +37,12 @@ class TenantContextTest {
         void getCurrentTenant_returnsBoundValue() {
             UUID tenantId = UUID.randomUUID();
 
-            ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
+            try {
+                TenantContext.setTenantId(tenantId);
                 assertThat(TenantContext.getCurrentTenant()).isEqualTo(tenantId);
-            });
+            } finally {
+                TenantContext.clear();
+            }
         }
     }
 
@@ -62,11 +68,14 @@ class TenantContextTest {
         @DisplayName("ScopedValue is automatically cleared after run() block")
         void scopedValue_isClearedAfterRun() {
             UUID tenantId = UUID.randomUUID();
-            ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
+            try {
+                TenantContext.setTenantId(tenantId);
                 assertThat(TenantContext.isBound()).isTrue();
-            });
+            } finally {
+                TenantContext.clear();
+            }
 
-            // After run(), the value must be gone
+            // After clear(), the value must be gone
             assertThat(TenantContext.isBound()).isFalse();
         }
     }

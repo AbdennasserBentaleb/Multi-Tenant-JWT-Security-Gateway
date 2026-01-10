@@ -13,9 +13,9 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-// import org.testcontainers.containers.PostgreSQLContainer;
-// import org.testcontainers.junit.jupiter.Container;
-// import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -51,25 +51,24 @@ import java.sql.Statement;
  */
 @SpringBootTest(classes = dev.gateway.JwtGatewayApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-// @Testcontainers Disabled for local build - uses docker-compose Postgres on 5434
+@Testcontainers
 @DisplayName("Product API — Multi-Tenant RLS Integration Tests")
 class ProductControllerIT {
 
-        // @Container
-        // static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-        //                 .withDatabaseName("gatewaydb")
-        //                 .withUsername("postgres") // superuser for migrations
-        //                 .withPassword("postgres");
+        @Container
+        static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+                        .withDatabaseName("gatewaydb")
+                        .withUsername("postgres") // superuser for migrations
+                        .withPassword("postgres");
 
         @DynamicPropertySource
         static void overrideDataSourceProperties(DynamicPropertyRegistry registry) {
-                // Use docker-compose postgres instead of Testcontainers
-                registry.add("spring.datasource.url", () -> "jdbc:postgresql://localhost:5434/gatewaydb");
-                registry.add("spring.datasource.username", () -> "gateway_user");
-                registry.add("spring.datasource.password", () -> "local_dev_password_only");
-                registry.add("spring.flyway.url", () -> "jdbc:postgresql://localhost:5434/gatewaydb");
-                registry.add("spring.flyway.user", () -> "postgres");
-                registry.add("spring.flyway.password", () -> "postgres");
+                registry.add("spring.datasource.url", postgres::getJdbcUrl);
+                registry.add("spring.datasource.username", postgres::getUsername);
+                registry.add("spring.datasource.password", postgres::getPassword);
+                registry.add("spring.flyway.url", postgres::getJdbcUrl);
+                registry.add("spring.flyway.user", postgres::getUsername);
+                registry.add("spring.flyway.password", postgres::getPassword);
                 // Disable OAuth2 issuer-uri resolution during tests
                 registry.add("spring.security.oauth2.resourceserver.jwt.issuer-uri",
                                 () -> "http://localhost:9999/test-issuer");
@@ -88,8 +87,8 @@ class ProductControllerIT {
 
         @BeforeEach
         void seedDatabase() throws Exception {
-                // Use direct JDBC connection as postgres superuser to truncate and bypass RLS for seeding
-                try (Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost:5434/gatewaydb", "postgres", "postgres")) {
+                // Use direct JDBC connection to truncate and bypass RLS for seeding
+                try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
                         try (Statement stmt = conn.createStatement()) {
                                 stmt.execute("TRUNCATE TABLE products");
                         }

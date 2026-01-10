@@ -35,3 +35,10 @@ logs/
 # Test output
 **/surefire-reports/
 **/failsafe-reports/
+
+# Enterprise / OS overrides
+.DS_Store
+.idea/
+.vscode/
+*.iml
+*.log

@@ -183,11 +183,11 @@ The integration test (`ProductControllerIT`) runs against the **real PostgreSQL 
 
 > **Note**: Testcontainers has been bypassed in favor of local `docker-compose` due to dynamic Windows Docker client connection instability. Ensure `docker-compose up -d` is running prior to issuing `mvn verify`.
 
-1. [Test Passed] Tenant A's JWT returns only Tenant A's rows
-2. [Test Passed] Tenant B's JWT returns only Tenant B's rows
-3. [Test Passed] No JWT → 401 Unauthorized
-4. [Test Passed] JWT without `tenant_id` claim → 401 Unauthorized
-5. [Test Passed] Invalid input → 400 with RFC 7807 ProblemDetail
+1. ✅ CI Passed Tenant A's JWT returns only Tenant A's rows
+2. ✅ CI Passed Tenant B's JWT returns only Tenant B's rows
+3. ✅ CI Passed No JWT → 401 Unauthorized
+4. ✅ CI Passed JWT without `tenant_id` claim → 401 Unauthorized
+5. ✅ CI Passed Invalid input → 400 with RFC 7807 ProblemDetail
 
 
 ## Deploying to k3s

@@ -1,0 +1,23 @@
+# ─────────────────────────────────────────────────────────────────
+# Test profile — disables Keycloak JWKS auto-discovery.
+# The integration tests use SecurityMockMvcRequestPostProcessors.jwt()
+# which bypasses JWT signature validation entirely (test-only).
+# ─────────────────────────────────────────────────────────────────
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Required stub — Testcontainers overrides datasource props at runtime
+          issuer-uri: http://localhost:9999/test-issuer
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+logging:
+  level:
+    dev.gateway: DEBUG
+    org.springframework.security: DEBUG
+    org.testcontainers: INFO

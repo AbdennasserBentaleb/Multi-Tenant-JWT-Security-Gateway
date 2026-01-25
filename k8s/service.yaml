@@ -1,0 +1,17 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-svc
+  namespace: jwt-gateway
+  labels:
+    app.kubernetes.io/name: jwt-security-gateway
+spec:
+  selector:
+    app: jwt-security-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP

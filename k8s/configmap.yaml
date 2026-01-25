@@ -1,0 +1,19 @@
+---
+# Non-sensitive configuration for the jwt-gateway namespace
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: jwt-gateway
+  labels:
+    app.kubernetes.io/name: jwt-security-gateway
+data:
+  SERVER_PORT: "8080"
+  DB_URL: "jdbc:postgresql://postgres-svc.jwt-gateway.svc.cluster.local:5432/gatewaydb"
+  OAUTH2_ISSUER_URI: "https://keycloak.your-domain.com/realms/gateway"
+  # JVM tuning for k3s Alpine nodes
+  JAVA_TOOL_OPTIONS: >-
+    -XX:+UseContainerSupport
+    -XX:MaxRAMPercentage=75.0
+    -XX:+CompactObjectHeaders
+    -Djava.security.egd=file:/dev/./urandom

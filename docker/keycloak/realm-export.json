@@ -1,0 +1,73 @@
+{
+    "realm": "gateway",
+    "enabled": true,
+    "users": [
+        {
+            "username": "tenant-a-user",
+            "email": "a@gateway.local",
+            "firstName": "Tenant",
+            "lastName": "A",
+            "emailVerified": true,
+            "enabled": true,
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "password",
+                    "temporary": false
+                }
+            ],
+            "attributes": {
+                "tenant_id": [
+                    "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+                ]
+            }
+        },
+        {
+            "username": "tenant-b-user",
+            "email": "b@gateway.local",
+            "firstName": "Tenant",
+            "lastName": "B",
+            "emailVerified": true,
+            "enabled": true,
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "password",
+                    "temporary": false
+                }
+            ],
+            "attributes": {
+                "tenant_id": [
+                    "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22"
+                ]
+            }
+        }
+    ],
+    "clients": [
+        {
+            "clientId": "gateway-client",
+            "enabled": true,
+            "publicClient": true,
+            "directAccessGrantsEnabled": true,
+            "webOrigins": [
+                "*"
+            ],
+            "protocol": "openid-connect",
+            "protocolMappers": [
+                {
+                    "name": "tenant_id",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-attribute-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "user.attribute": "tenant_id",
+                        "claim.name": "tenant_id",
+                        "jsonType.label": "String",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true"
+                    }
+                }
+            ]
+        }
+    ]
+}

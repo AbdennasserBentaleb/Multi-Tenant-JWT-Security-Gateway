@@ -69,8 +69,8 @@ Client A (JWT: tenant_id=A)          Client B (JWT: tenant_id=B)
 
 ### Prerequisites
 
-- Docker Desktop or Docker Engine
-- Java 25 JDK (for local builds)
+* Docker Desktop or Docker Engine
+* Java 25 JDK (for local builds)
 
 ### 1. Clone and start services
 
@@ -82,9 +82,9 @@ docker compose up --build -d
 
 This starts:
 
-- **PostgreSQL 16** with Flyway migrations (RLS enabled automatically)
-- **Keycloak 25** identity provider
-- **Gateway application** on port 8080
+* **PostgreSQL 16** with Flyway migrations (RLS enabled automatically)
+* **Keycloak 25** identity provider
+* **Gateway application** on port 8080
 
 ### 2. Get a token from Keycloak
 
@@ -253,3 +253,4 @@ Update `k8s/configmap.yaml` with your actual Keycloak issuer URI and database ho
 | Container | Distroless Java 25 | nonroot |
 | Orchestration | k3s (Kubernetes) | v1.29+ |
 | CI/CD | GitHub Actions | Latest |
+

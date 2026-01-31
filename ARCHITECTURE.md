@@ -51,6 +51,7 @@ Because the image lacks a shell (like `bash`), package managers (`apt`), or comm
 
 ## Preparing for Production
 
-- **Pagination**: API endpoints implement Spring Data `Pageable` to prevent memory exhaustion when querying large tables.
-- **Observability**: Prometheus metrics (`micrometer-registry-prometheus`) act alongside K3s liveness and readiness probes to provide complete operational visibility.
-- **CORS Configuration**: Configured to securely handle cross-origin requests from web clients, a necessity for decoupled backend API architectures.
+* **Pagination**: API endpoints implement Spring Data `Pageable` to prevent memory exhaustion when querying large tables.
+* **Observability**: Prometheus metrics (`micrometer-registry-prometheus`) act alongside K3s liveness and readiness probes to provide complete operational visibility.
+* **CORS Configuration**: Configured to securely handle cross-origin requests from web clients, a necessity for decoupled backend API architectures.
+

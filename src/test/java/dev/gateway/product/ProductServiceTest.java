@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Mockito's annotation-based mocking. This approach avoids the Mockito
  * byte-buddy
  * limitation with mocking Spring Data JPA repository interface hierarchies on
- * certain Java versions (where the inline agent cannot retransform all interfaces in the
+ * Java 25 (where the inline agent cannot retransform all interfaces in the
  * hierarchy).
  *
  * <p>
@@ -52,17 +52,14 @@ class ProductServiceTest {
         stubRepo.store(new Product(tenantId, "Widget", new BigDecimal("9.99")));
         stubRepo.store(new Product(tenantId, "Gadget", new BigDecimal("19.99")));
 
-        try {
-            TenantContext.setTenantId(tenantId);
+        ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
             Page<ProductResponse> responses = productService
                     .findAll(org.springframework.data.domain.PageRequest.of(0, 10));
 
             assertThat(responses.getContent()).hasSize(2);
             assertThat(responses.getContent()).extracting(ProductResponse::name)
                     .containsExactlyInAnyOrder("Widget", "Gadget");
-        } finally {
-            TenantContext.clear();
-        }
+        });
     }
 
     @Test
@@ -71,16 +68,13 @@ class ProductServiceTest {
         UUID tenantId = UUID.randomUUID();
         CreateProductRequest request = new CreateProductRequest("New Item", new BigDecimal("5.00"));
 
-        try {
-            TenantContext.setTenantId(tenantId);
+        ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
             ProductResponse created = productService.create(request);
 
             assertThat(created.tenantId()).isEqualTo(tenantId);
             assertThat(created.name()).isEqualTo("New Item");
             assertThat(created.price()).isEqualByComparingTo("5.00");
-        } finally {
-            TenantContext.clear();
-        }
+        });
     }
 
     @Test
@@ -89,14 +83,11 @@ class ProductServiceTest {
         UUID tenantId = UUID.randomUUID();
         UUID unknownId = UUID.randomUUID();
 
-        try {
-            TenantContext.setTenantId(tenantId);
+        ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
             assertThatThrownBy(() -> productService.findById(unknownId))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining(unknownId.toString());
-        } finally {
-            TenantContext.clear();
-        }
+        });
     }
 
     @Test
@@ -105,13 +96,10 @@ class ProductServiceTest {
         UUID tenantId = UUID.randomUUID();
         Product product = stubRepo.store(new Product(tenantId, "ToDelete", new BigDecimal("1.00")));
 
-        try {
-            TenantContext.setTenantId(tenantId);
+        ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
             productService.delete(product.getId());
             assertThat(stubRepo.findById(product.getId())).isEmpty();
-        } finally {
-            TenantContext.clear();
-        }
+        });
     }
 
     // ── In-memory stub ───────────────────────────────────────────────────────

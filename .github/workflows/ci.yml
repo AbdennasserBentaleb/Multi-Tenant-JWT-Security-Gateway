@@ -9,7 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/jwt-security-gateway
-  JAVA_VERSION: "21"
+  JAVA_VERSION: "25"
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────────

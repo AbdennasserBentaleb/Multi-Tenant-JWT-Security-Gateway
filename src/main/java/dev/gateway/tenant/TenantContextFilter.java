@@ -17,8 +17,8 @@ import java.io.IOException;
 import java.util.UUID;
 
 /**
- * Servlet filter that binds the current tenant's UUID into a Java 21
- * {@link ThreadLocal} for the duration of the HTTP request.
+ * Servlet filter that binds the current tenant's UUID into a Java 25
+ * {@link ScopedValue} for the duration of the HTTP request.
  *
  * <h2>Execution order</h2>
  * This filter runs <em>after</em> {@code BearerTokenAuthenticationFilter} so
@@ -28,10 +28,13 @@ import java.util.UUID;
  * taken from {@link JwtAuthenticationToken#getDetails()}, which was set by
  * {@link JwtTenantConverter}.
  *
- * <h2>ThreadLocal binding</h2>
- * The tenant context is set for the current request-handling thread and must be
- * manually cleared in a {@code finally} block when the request processing finishes
- * to prevent memory leaks in the servlet container's thread pool.
+ * <h2>ScopedValue binding</h2>
+ * {@link ScopedValue#where(ScopedValue, Object)} creates an immutable binding
+ * that
+ * is automatically cleared when the {@code run()} block exits — even if an
+ * exception
+ * is thrown. This is safer than {@code ThreadLocal.remove()} which can be
+ * forgotten.
  */
 @Component
 public class TenantContextFilter extends OncePerRequestFilter {
@@ -49,19 +52,23 @@ public class TenantContextFilter extends OncePerRequestFilter {
         if (auth instanceof JwtAuthenticationToken jwtAuth
                 && jwtAuth.getDetails() instanceof UUID tenantId) {
 
-            log.debug("Binding tenant [{}] to ThreadLocal for request [{}]",
+            log.debug("Binding tenant [{}] to ScopedValue for request [{}]",
                     tenantId, request.getRequestURI());
 
-            // ThreadLocal binding
+            // ScopedValue binding
             try {
-                TenantContext.setTenantId(tenantId);
-                filterChain.doFilter(request, response);
-            } catch (ServletException | IOException e) {
-                throw e;
-            } catch (Exception e) {
+                ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId)
+                        .run(() -> {
+                            try {
+                                filterChain.doFilter(request, response);
+                            } catch (ServletException | IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
+            } catch (RuntimeException e) {
+                if (e.getCause() instanceof ServletException se) throw se;
+                if (e.getCause() instanceof IOException ioe) throw ioe;
                 throw new ServletException("Unexpected error in TenantContextFilter", e);
-            } finally {
-                TenantContext.clear();
             }
 
         } else {

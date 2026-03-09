@@ -53,7 +53,7 @@
                     <ul>
                         <li>Both users authenticate via <strong>Keycloak</strong> to obtain a JWT.</li>
                         <li>The JWT contains a scoped <code>tenant_id</code> claim.</li>
-                        <li>The <strong>Spring Boot</strong> gateway extracts this claim into a Java 21 <code>ThreadLocal</code>.</li>
+                        <li>The <strong>Spring Boot</strong> gateway extracts this claim into a Java 25 <code>ScopedValue</code>.</li>
                         <li><strong>PostgreSQL RLS</strong> physically isolates the data at the database engine level.</li>
                     </ul>
                 </div>

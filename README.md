@@ -1,9 +1,9 @@
 # Multi-Tenant JWT Security Gateway
 
-> Spring Boot 3.4 · Java 21 · PostgreSQL Row-Level Security · k3s
+> Spring Boot 3.4 · Java 25 · PostgreSQL Row-Level Security · k3s
 
 [![CI](https://github.com/YOUR_USERNAME/jwt-security-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/jwt-security-gateway/actions/workflows/ci.yml)
-[![Java](https://img.shields.io/badge/Java-21-orange)](https://openjdk.org/projects/jdk/21/)
+[![Java](https://img.shields.io/badge/Java-25-orange)](https://openjdk.org/projects/jdk/25/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4-green)](https://spring.io/projects/spring-boot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -38,9 +38,9 @@ Client A (JWT: tenant_id=A)          Client B (JWT: tenant_id=B)
 │        • Stores UUID in JwtAuthenticationToken.details      │
 │                                                             │
 │  2. TenantContextFilter                                     │
-│     └─ TenantContext.setTenantId(uuid)                      │
-│        • Java 21 ThreadLocal — request-scoped context       │
-│         (manually cleared after request processing)         │
+│     └─ ScopedValue.where(CURRENT_TENANT, uuid).call(...)    │
+│        • Java 25 ScopedValue — immutable, auto-cleaned      │
+│         (safer than ThreadLocal with Virtual Threads)        │
 │                                                             │
 │  3. TenantAwareDataSource (HikariCP wrapper)                │
 │     └─ getConnection() → SET LOCAL app.current_tenant = ?   │
@@ -70,7 +70,7 @@ Client A (JWT: tenant_id=A)          Client B (JWT: tenant_id=B)
 ### Prerequisites
 
 * Docker Desktop or Docker Engine
-* Java 21 JDK (for local builds)
+* Java 25 JDK (for local builds)
 
 ### 1. Clone and start services
 
@@ -155,11 +155,11 @@ Update `k8s/configmap.yaml` with your actual Keycloak issuer URI and database ho
 
 ## Key Design Decisions (ADRs)
 
-### ADR-001: ThreadLocal for Tenant Context
+### ADR-001: Java 25 ScopedValue over ThreadLocal
 
-**Decision**: Use `ThreadLocal` to bind the current tenant ID to the request-processing thread.
+**Decision**: Use `ScopedValue` (JEP 506, finalized in Java 25) instead of `ThreadLocal`.
 
-**Rationale**: While newer constructs like `ScopedValue` exist in preview for Java 21, `ThreadLocal` remains a mature and reliable way to propagate security context (like the tenant ID) down the call stack in standard Spring MVC. It avoids passing the `tenant_id` as a parameter to every method. It must be strictly cleared in a `finally` block or via the `TenantContextFilter` once the request completes to prevent memory leaks in the thread pool.
+**Rationale**: ScopedValue is immutable once bound — a downstream component cannot accidentally overwrite the tenant. It also integrates correctly with Project Loom Virtual Threads, where `ThreadLocal` inheritance semantics cause subtle bugs at scale.
 
 ### ADR-002: RLS-first, no application-layer WHERE clauses
 
@@ -173,9 +173,9 @@ Update `k8s/configmap.yaml` with your actual Keycloak issuer URI and database ho
 
 **Rationale**: `SET LOCAL` is transaction-scoped. When the transaction commits or rolls back, PostgreSQL automatically clears the variable. This makes the approach safe with connection pooling — a connection returned to HikariCP cannot "leak" a tenant ID to the next borrower.
 
-### ADR-004: Minimal Alpine nonroot runtime
+### ADR-004: Distroless nonroot runtime
 
-**Decision**: `eclipse-temurin:21-jdk-alpine` as the runtime base image with a custom non-root user.
+**Decision**: `gcr.io/distroless/java25-debian12:nonroot` as the runtime base image.
 
 **Rationale**: No shell, no package manager, and no OS utilities means no attack surface. The container runs as UID 65532 (non-root) with a read-only root filesystem. This satisfies typical strict ISMS (e.g. ISO 27001) container hardening requirements.
 
@@ -189,9 +189,9 @@ Update `k8s/configmap.yaml` with your actual Keycloak issuer URI and database ho
 │   │   ├── SecurityConfig.java         — OAuth2 Resource Server setup
 │   │   └── DataSourceConfig.java       — HikariCP + RLS connection wrapper
 │   ├── tenant/
-│   │   ├── TenantContext.java          — Java 21 ThreadLocal holder
+│   │   ├── TenantContext.java          — Java 25 ScopedValue holder
 │   │   ├── JwtTenantConverter.java     — JWT claim extractor
-│   │   └── TenantContextFilter.java    — Binds tenant to ThreadLocal scope
+│   │   └── TenantContextFilter.java    — Binds tenant to ScopedValue scope
 │   ├── product/
 │   │   ├── Product.java                — JPA Entity
 │   │   ├── ProductRepository.java      — Spring Data JPA (no filters!)
@@ -208,12 +208,12 @@ Update `k8s/configmap.yaml` with your actual Keycloak issuer URI and database ho
 │       └── V2__enable_rls.sql          — RLS policy
 ├── src/test/java/dev/gateway/
 │   ├── tenant/
-│   │   ├── TenantContextTest.java      — Unit: ThreadLocal behaviour
+│   │   ├── TenantContextTest.java      — Unit: ScopedValue behaviour
 │   │   └── JwtTenantConverterTest.java — Unit: claim extraction
 │   └── product/
 │       ├── ProductServiceTest.java     — Unit: Mockito service tests
 │       └── ProductControllerIT.java    — Integration: Testcontainers + RLS proof
-├── Dockerfile                          — Multi-stage: builder → alpine nonroot
+├── Dockerfile                          — Multi-stage: temurin:25 → distroless
 ├── docker-compose.yml                  — Local dev: app + postgres + keycloak
 ├── k8s/                                — k3s manifests
 │   ├── namespace.yaml
@@ -234,7 +234,7 @@ Update `k8s/configmap.yaml` with your actual Keycloak issuer URI and database ho
 | Data isolation | PostgreSQL RLS — FORCE ROW LEVEL SECURITY |
 | Transport security | HTTPS via Traefik ingress (k3s default) |
 | Cloud-Native Ready | Prometheus metrics, Pageable API results, full CORS setup |
-| Container hardening | Alpine, non-root, read-only FS, caps dropped |
+| Container hardening | Distroless, non-root, read-only FS, caps dropped |
 | Secret management | Kubernetes Secrets (template for Sealed Secrets) |
 | Stateless sessions | No HTTP session — JWT-only (12-Factor) |
 
@@ -243,14 +243,14 @@ Update `k8s/configmap.yaml` with your actual Keycloak issuer URI and database ho
 
 | Component | Technology | Version |
 |---|---|---|
-| Language | Java | 21 (LTS) |
+| Language | Java | 25 (LTS) |
 | Framework | Spring Boot | 3.4.3 |
 | Security | Spring Security OAuth2 RS | 6.4.x |
 | Persistence | Spring Data JPA + Hibernate | 6.x |
 | Database | PostgreSQL | 16+ |
 | Migrations | Flyway | 10.x |
 | Tests | JUnit 5 + Mockito + Testcontainers | Latest |
-| Container | Eclipse Temurin Java 21 | Alpine |
+| Container | Distroless Java 25 | nonroot |
 | Orchestration | k3s (Kubernetes) | v1.29+ |
 | CI/CD | GitHub Actions | Latest |
 

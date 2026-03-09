@@ -24,7 +24,7 @@
 
     <name>Multi-Tenant JWT Security Gateway</name>
     <description>
-        Spring Boot 3.4 / Java 21 microservice that enforces
+        Spring Boot 3.4 / Java 25 microservice that enforces
         multi-tenant data isolation using OAuth2 JWTs and PostgreSQL
         Row-Level Security (RLS). Designed for B2B SaaS.
     </description>
@@ -33,7 +33,7 @@
     <!--  Properties                                                          -->
     <!-- ─────────────────────────────────────────────────────────────────── -->
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <testcontainers.version>1.20.4</testcontainers.version>
         <springdoc.version>2.7.0</springdoc.version>
     </properties>
@@ -168,7 +168,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Compiler — Java 21 -->
+            <!-- Compiler — Java 25 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -200,7 +200,10 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration>
-                    <!-- argLine is skipped for java 21 integration test -->
+                    <argLine>
+                        -XX:+EnableDynamicAgentLoading
+                        -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
+                    </argLine>
                 </configuration>
                 <executions>
                     <execution>

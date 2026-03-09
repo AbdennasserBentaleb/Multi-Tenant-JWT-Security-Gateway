@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * Tests for {@link TenantContext}.
  */
-@DisplayName("TenantContext (ThreadLocal)")
+@DisplayName("TenantContext (ScopedValue)")
 class TenantContextTest {
 
     @Nested
@@ -24,12 +24,9 @@ class TenantContextTest {
         void isBound_returnsTrue() {
             UUID tenantId = UUID.randomUUID();
 
-            try {
-                TenantContext.setTenantId(tenantId);
+            ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
                 assertThat(TenantContext.isBound()).isTrue();
-            } finally {
-                TenantContext.clear();
-            }
+            });
         }
 
         @Test
@@ -37,12 +34,9 @@ class TenantContextTest {
         void getCurrentTenant_returnsBoundValue() {
             UUID tenantId = UUID.randomUUID();
 
-            try {
-                TenantContext.setTenantId(tenantId);
+            ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
                 assertThat(TenantContext.getCurrentTenant()).isEqualTo(tenantId);
-            } finally {
-                TenantContext.clear();
-            }
+            });
         }
     }
 
@@ -65,13 +59,15 @@ class TenantContextTest {
         }
 
         @Test
-        @DisplayName("ThreadLocal is correctly cleared")
-        void threadLocal_isCleared() {
+        @DisplayName("ScopedValue is automatically cleared when scope exits")
+        void scopedValue_isAutomaticallyCleared() {
             UUID tenantId = UUID.randomUUID();
-            TenantContext.setTenantId(tenantId);
-            TenantContext.clear();
 
-            // After clear, the value must be gone
+            ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId).run(() -> {
+                assertThat(TenantContext.isBound()).isTrue();
+            });
+
+            // Once the .run() block finishes, the scope exits and the value is gone
             assertThat(TenantContext.isBound()).isFalse();
         }
     }

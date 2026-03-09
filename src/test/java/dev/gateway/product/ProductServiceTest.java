@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Mockito's annotation-based mocking. This approach avoids the Mockito
  * byte-buddy
  * limitation with mocking Spring Data JPA repository interface hierarchies on
- * Java 25 (where the inline agent cannot retransform all interfaces in the
+ * certain Java versions (where the inline agent cannot retransform all interfaces in the
  * hierarchy).
  *
  * <p>

@@ -32,7 +32,7 @@ USER appuser
 
 # k3s: these labels are read by metadata tools and the GitHub Actions workflow
 LABEL org.opencontainers.image.title="Multi-Tenant JWT Security Gateway"
-LABEL org.opencontainers.image.description="Spring Boot 3.4 / Java 25 multi-tenant API gateway with PostgreSQL RLS"
+LABEL org.opencontainers.image.description="Spring Boot 3.4 / Java 21 multi-tenant API gateway with PostgreSQL RLS"
 LABEL org.opencontainers.image.source="https://github.com/YOUR_USERNAME/jwt-security-gateway"
 LABEL org.opencontainers.image.vendor="Internal API"
 
@@ -48,11 +48,9 @@ COPY --from=builder /workspace/target/extracted/application/ ./
 # ── JVM tuning for containerised environments ────────────────────────────────
 # -XX:+UseContainerSupport — reads CPU/memory from cgroup (k3s resource limits)
 # -XX:MaxRAMPercentage=75  — use 75% of container memory for heap
-# -XX:+CompactObjectHeaders — Java 25 JEP 519: smaller object headers
 # -Djava.security.egd    — faster secure random in Alpine containers
 ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -XX:MaxRAMPercentage=75.0 \
-    -XX:+CompactObjectHeaders \
     -Djava.security.egd=file:/dev/./urandom \
     -Dspring.profiles.active=prod"
 

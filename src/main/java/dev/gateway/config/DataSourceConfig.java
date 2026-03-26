@@ -24,12 +24,11 @@ import java.util.UUID;
  * Every time a JDBC connection is borrowed from HikariCP, the wrapper executes:
  * 
  * <pre>{@code
- *   SET LOCAL app.current_tenant = '<uuid>';
+ *   SET SESSION app.current_tenant = '<uuid>';
  * }</pre>
  * 
- * inside the same JDBC statement. {@code SET LOCAL} is transaction-scoped in
- * PostgreSQL — it is automatically cleared when the transaction commits or
- * rolls back, making it safe to use with connection pooling.
+ * inside the same JDBC statement. It is automatically cleared when the connection
+ * is returned or borrowed by resetting it, making it safe to use with connection pooling.
  *
  * <p>
  * The RLS policy ({@code V2__enable_rls.sql}) reads this session variable:
@@ -96,7 +95,7 @@ public class DataSourceConfig {
             if (!TenantContext.isBound()) {
                 log.trace("No tenant in scope; clearing app.current_tenant for connection {}", connection);
                 try (java.sql.Statement st = connection.createStatement()) {
-                    st.execute("SET LOCAL app.current_tenant = ''");
+                    st.execute("SET SESSION app.current_tenant = ''");
                 } catch (SQLException e) {
                     // Ignore if variable not yet defined
                 }
@@ -106,7 +105,7 @@ public class DataSourceConfig {
             UUID tenantId = TenantContext.getCurrentTenant();
             log.debug("Applying tenant [{}] to JDBC connection", tenantId);
 
-            String sql = "SET LOCAL app.current_tenant = '" + tenantId.toString() + "'";
+            String sql = "SET SESSION app.current_tenant = '" + tenantId.toString() + "'";
             try (java.sql.Statement st = connection.createStatement()) {
                 st.execute(sql);
             } catch (SQLException e) {

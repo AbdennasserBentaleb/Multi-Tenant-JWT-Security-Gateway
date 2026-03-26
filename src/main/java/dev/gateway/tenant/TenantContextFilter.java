@@ -47,31 +47,33 @@ public class TenantContextFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain) throws ServletException, IOException {
 
+        String path = request.getRequestURI();
+        // Skip tenant extraction for public resources and actuator endpoints
+        if (path.startsWith("/actuator") || path.startsWith("/swagger-ui") || 
+            path.startsWith("/api-docs") || path.equals("/") || 
+            path.endsWith(".html") || path.endsWith(".js") || path.endsWith(".css")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        if (auth instanceof JwtAuthenticationToken jwtAuth
-                && jwtAuth.getDetails() instanceof UUID tenantId) {
+        if (auth instanceof JwtAuthenticationToken jwtAuth) {
+            String tenantStr = jwtAuth.getToken().getClaimAsString("tenant_id");
+            if (tenantStr != null && !tenantStr.isBlank()) {
+                UUID tenantId = UUID.fromString(tenantStr.trim());
+                log.debug("Binding tenant [{}] to ThreadLocal for request [{}]", tenantId, request.getRequestURI());
 
-            log.debug("Binding tenant [{}] to ScopedValue for request [{}]", tenantId, request.getRequestURI());
-
-            try {
-                ScopedValue.where(TenantContext.CURRENT_TENANT, tenantId)
-                        .run(() -> {
-                            try {
-                                filterChain.doFilter(request, response);
-                            } catch (ServletException | IOException e) {
-                                throw new RuntimeException("Filter chain error", e);
-                            }
-                        });
-            } catch (RuntimeException e) {
-                if (e.getCause() instanceof ServletException se) {
-                    throw se;
-                } else if (e.getCause() instanceof IOException ioe) {
-                    throw ioe;
+                try {
+                    TenantContext.setTenantId(tenantId);
+                    filterChain.doFilter(request, response);
+                } finally {
+                    TenantContext.clear();
                 }
-                throw new ServletException("Unexpected error in TenantContextFilter", e);
+            } else {
+                log.trace("Missing tenant_id claim; rejecting request for [{}]", request.getRequestURI());
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing tenant_id claim");
             }
-
         } else {
             log.trace("No JwtAuthenticationToken found; skipping tenant binding for [{}]", request.getRequestURI());
             filterChain.doFilter(request, response);

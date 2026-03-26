@@ -16,8 +16,6 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
-import java.util.List;
-
 /**
  * Spring Security configuration for the JWT Gateway.
  *
@@ -76,9 +74,7 @@ public class SecurityConfig {
                                 .authorizeHttpRequests(auth -> auth
                                                 // k3s liveness/readiness probes — no auth
                                                 .requestMatchers(
-                                                                "/actuator/health",
-                                                                "/actuator/health/liveness",
-                                                                "/actuator/health/readiness")
+                                                                "/actuator/**")
                                                 .permitAll()
                                                 // OpenAPI docs
                                                 .requestMatchers(
@@ -91,7 +87,8 @@ public class SecurityConfig {
                                                                 "/",
                                                                 "/index.html",
                                                                 "/style.css",
-                                                                "/app.js")
+                                                                "/app.js",
+                                                                "/favicon.ico")
                                                 .permitAll()
                                                 // Everything else requires a valid Bearer JWT
                                                 .anyRequest().authenticated());
@@ -103,8 +100,8 @@ public class SecurityConfig {
         public CorsConfigurationSource corsConfigurationSource() {
                 CorsConfiguration configuration = new CorsConfiguration();
                 // 12-Factor app: Inject allowed origin from environment rather than hardcoding '*'
-                String allowedOrigin = System.getenv().getOrDefault("ALLOWED_ORIGIN", "http://localhost:5173");
-                configuration.setAllowedOrigins(List.of(allowedOrigin));
+                String allowedOrigin = System.getenv().getOrDefault("ALLOWED_ORIGIN", "http://localhost:8081");
+                configuration.setAllowedOrigins(List.of(allowedOrigin, "http://localhost:5173"));
                 configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                 configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
                 UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

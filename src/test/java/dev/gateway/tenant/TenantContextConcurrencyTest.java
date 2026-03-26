@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TenantContextConcurrencyTest {
 
     @Test
-    @DisplayName("ScopedValue strictly isolates tenant configurations across 10,000 concurrent virtual threads without race conditions")
+    @DisplayName("ThreadLocal strictly isolates tenant configurations across concurrent virtual threads without race conditions")
     void verifyStrictConcurrencyIsolationUnderLoad() throws InterruptedException, ExecutionException {
         int threadCount = 10_000;
         
@@ -39,11 +39,14 @@ class TenantContextConcurrencyTest {
                     startLatch.await();
 
                     // Bind the tenant context for this specific virtual thread
-                    return ScopedValue.where(TenantContext.CURRENT_TENANT, tenantIdForThisThread).call(() -> {
+                    try {
+                        TenantContext.setTenantId(tenantIdForThisThread);
                         UUID retrievedTenantId = TenantContext.getCurrentTenant();
                         doneLatch.countDown();
                         return tenantIdForThisThread.equals(retrievedTenantId);
-                    });
+                    } finally {
+                        TenantContext.clear();
+                    }
                 });
             }
 
